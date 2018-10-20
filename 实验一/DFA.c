@@ -43,7 +43,11 @@ int main()
     scanf("%d",&flag);
     if(flag)
     {//文件读取
-        DFA_FINPUT();
+        if(DFA_FINPUT())
+        {
+            printf("读取失败，请重新启动程序");
+            return 0;
+        }
         DFA_createtable(&dfa1);
     }else
     {//手动输入
@@ -54,9 +58,7 @@ int main()
         fflush(stdin);
         if(flag == 'y')
             DFA_FOUTPUT();
-        else if(flag == 'n')
-            ;
-        else
+        else if(flag != 'n')
             printf("输入格式错误,默认不保存文件;");
     }
 
@@ -66,11 +68,13 @@ int main()
     char tmpstr[90];
     while(flag)
     {
-        printf("\ndfa已成功读取，请输入需要使用的功能\n");
+        printf("\n--------------------------------------\n");
+        printf("请输入需要使用的功能\n");
         printf("0.退出程序\n");
         printf("1.dfa错误检查\n");
         printf("2.生成长度小于等于n的所有规则字符串\n");
         printf("3.检验输入字符串是否符合规则\n");
+        printf("--------------------------------------\n");
         printf("请输入:");
         fflush(stdin);
         scanf("%d",&flag);
@@ -100,7 +104,7 @@ int main()
             break;
         }
     }
-
+    printf("程序退出！\n");
 
     DFA_free(&dfa1);
     return 0;
@@ -117,6 +121,7 @@ int DFA_INPUT()
     scanf("%d",&dfa1.zifu_n);
     fflush(stdin);
     dfa1.zifu = malloc(sizeof(char) * (dfa1.zifu_n + 1));
+    dfa1.zifu[0] = 0;
     printf("请输入字符集中的字符(不需要分隔):\n");
     for(i=1;i <= dfa1.zifu_n;i++)  //从1到n
     {
@@ -147,18 +152,28 @@ int DFA_INPUT()
     dfa1.trfun = malloc(sizeof(TRANS_FUN) * dfa1.trfun_n);
     printf("请输入转移函数,每行一个,格式为:当前状态(空格)下一状态(空格)接收字符(换行符)\n\
 特别注意:每个转移函数只能包括一个字符,若一个状态转移可以接收多种字符,请分成两条转移函数输入,\n\
-另,可用##表示\"字符集以外任意字符\"例:\n\
-\t0 1 a\n\t1 2 ##\n\t1 3 d\n请输入:\n");
+另,可用\"(o)\"表示\"字符集以外任意字符\"例:\n\
+\t0 1 a\n\t1 2 (o)\n\t1 3 d\n请输入:\n");
     for(i=0;i<dfa1.trfun_n;i++)
     {
         scanf("%d %d %c",&dfa1.trfun[i].cur,&dfa1.trfun[i].next,&ctmp);
-        if(ctmp == '#')//检查是否为"##"
+        if(ctmp == '(')//检查是否为"(o)"
         {
             scanf("%c",&ctmp);
-            if(ctmp == '#')
-                dfa1.trfun[i].chr = 0; //赋值为0表示other
-            else
-                dfa1.trfun[i].chr = '#'; //只是普通的'#'字符
+            if(ctmp == 'o')
+            {
+                scanf("%c",&ctmp);
+                if(ctmp == ')')
+                    dfa1.trfun[i].chr = 0; //赋值为0表示other
+                else
+                {//第三个字符不匹配，说明输入有误
+                    printf("该转移函数输入有误！,请重新输入!\n");
+                    fflush(stdin);
+                    i--;
+                    continue;
+                }
+            }else//第二个字符不匹配
+                dfa1.trfun[i].chr = '('; //只是普通的'('字符
         }else
             dfa1.trfun[i].chr = ctmp;
     }
@@ -176,10 +191,16 @@ int DFA_FINPUT()  //文件读取
     printf("\n请输入需要读取的DFA文件名(如:\"aa.dfa\"):");
     scanf("%s",stmp);
     fin = fopen(stmp,"r");   //以读取方式打开
+    if(fin == NULL)
+    {
+        printf("文件不存在!\n");
+        return -1;
+    }
 
     //字符集
     fscanf(fin,"%d\n",&dfa1.zifu_n);
     dfa1.zifu = malloc(sizeof(char) * (dfa1.zifu_n + 1));
+    dfa1.zifu[0] = 0;
     for(i=1;i <= dfa1.zifu_n;i++)  //从1到n
     {
         fscanf(fin,"%c",&dfa1.zifu[i]);
@@ -205,13 +226,22 @@ int DFA_FINPUT()  //文件读取
     for(i=0;i<dfa1.trfun_n;i++)
     {
         fscanf(fin,"%d %d %c",&dfa1.trfun[i].cur,&dfa1.trfun[i].next,&ctmp);
-        if(ctmp == '#')//检查是否为"##"
+        if(ctmp == '(')//检查是否为"(o)"
         {
             fscanf(fin,"%c",&ctmp);
-            if(ctmp == '#')
-                dfa1.trfun[i].chr = 0; //赋值为0表示other
+            if(ctmp == 'o')
+            {
+                fscanf(fin,"%c",&ctmp);
+                if(ctmp == ')')
+                    dfa1.trfun[i].chr = 0;
+                else
+                {
+                    printf("转移函数读取发生错误!\n");
+                    return -1;
+                }
+            }
             else
-                dfa1.trfun[i].chr = '#'; //只是普通的'#'字符
+                dfa1.trfun[i].chr = '('; //只是普通的'#'字符
         }else
             dfa1.trfun[i].chr = ctmp;
     }
@@ -227,6 +257,7 @@ int DFA_FOUTPUT()
     char stmp[90];
     int i,j;
     printf("请输入需要保存的文件名(如:\"aa.dfa\"):");
+    scanf("%s",&stmp);
     fout = fopen(stmp,"w");
 
     //字符集
@@ -257,9 +288,11 @@ int DFA_FOUTPUT()
     fprintf(fout,"\n%d\n",dfa1.trfun_n);
     for(i=0;i<dfa1.trfun_n;i++)
     {
-        fprintf(fout,"%d %d %c",dfa1.trfun[i].cur,dfa1.trfun[i].next,dfa1.trfun[i].chr);
-        if(dfa1.trfun[i].chr == 0)//检查是否为"##"
-            fprintf(fout,"##");
+        fprintf(fout,"%d %d ",dfa1.trfun[i].cur,dfa1.trfun[i].next);
+        if(dfa1.trfun[i].chr == 0)//检查是否为"(o)"
+            fprintf(fout,"(o)");
+        else
+            fprintf(fout,"%c",dfa1.trfun[i].chr);
         fprintf(fout,"\n");
     }
     fclose(fout);
@@ -316,7 +349,7 @@ int DFA_check(DFA *df)
     }
 
     //转移表打印
-    printf("\n转移表如下图:\n   |\t##");
+    printf("\n转移表如下图:\n   |\t(o)");
     for(i=1;i<=df->zifu_n;i++)
         printf("\t%c",df->zifu[i]);
     printf("\n");
@@ -339,9 +372,11 @@ int DFA_check(DFA *df)
     printf("\n转移函数如下(格式为\"当前状态 下一状态 接收字符\"):\n");
     for(i=0;i<df->trfun_n;i++)
     {
-        printf("%d %d %c",df->trfun[i].cur,df->trfun[i].next,df->trfun[i].chr);
+        printf("%d %d ",df->trfun[i].cur,df->trfun[i].next);
         if(df->trfun[i].chr == 0)
-            printf("##");
+            printf("(o)");
+        else
+            printf("%c",df->trfun[i].chr);
         if(df->table[ df->trfun[i].cur ][ ha[ df->trfun[i].chr ] ] != df->trfun[i].next) //检查该函数是否在表中
         {
             printf("  该转移函数未在表中 ！！");
@@ -384,7 +419,7 @@ int DFA_createtable(DFA *df)
     for(i=0;i<df->state_n;i++)
     {//为其他字符多留一个位置
         df->table[i] = malloc(sizeof(int) * (df->zifu_n + 1));
-        memset(df->table[i],-1,sizeof(df->table[i]));//将表初始化为-1
+        memset(df->table[i],-1,sizeof(int) * (df->zifu_n + 1) );//将表初始化为-1
     }
 
     //将转移函数写入表中
@@ -433,7 +468,16 @@ void dfs(DFA *df,int n/*最大深度*/,int cur/*当前深度*/)
     {
         sta = stack[cur-1];
         if(df->state[sta])
-            printf("%s\n",tstr);
+        {
+            for(i=0;i<cur;i++)
+            {
+                if(tstr[i] == 0)
+                    printf("(o)");
+                else
+                    printf("%c",tstr[i]);
+            }
+            printf("\n");
+        }
     }
 
     if(cur == n)
